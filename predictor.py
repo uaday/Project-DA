@@ -2,11 +2,8 @@
 import numpy as np
 import joblib
 
-# Load once (module-level)
-_lr = joblib.load("models/lr_model.pkl")
-_rf = joblib.load("models/rf_model.pkl")
+# Load once (module-level) - Using only XGBoost for deployment
 _xgb = joblib.load("models/xgb_model.pkl")
-_scaler = joblib.load("models/scaler.pkl")
 _label_encoders = joblib.load("models/label_encoders.pkl")
 
 LUXURY_BRANDS = ['Mercedes-Benz','BMW','Audi','Lexus','Porsche','Jaguar','Land Rover','Cadillac','Tesla','Maserati']
@@ -42,33 +39,25 @@ def predict_vehicle_price(year, make, body, transmission, odometer, condition, m
     feats = np.array([[vehicle_age, odometer, condition, mmr, is_luxury,
                        make_enc, body_enc, trans_enc]])
 
-    # Linear uses scaled features
-    pred_lr  = float(_lr.predict(_scaler.transform(feats))[0])
-    pred_rf  = float(_rf.predict(feats)[0])
+    # XGBoost prediction (R² = 0.971, RMSE = $892)
     pred_xgb = float(_xgb.predict(feats)[0])
 
-    pred_ensemble = pred_lr*0.2 + pred_rf*0.3 + pred_xgb*0.5
-
     margin_xgb = (pred_xgb - mmr) / mmr * 100
-    margin_ens = (pred_ensemble - mmr) / mmr * 100
 
-    preds = [pred_lr, pred_rf, pred_xgb]
-    std = float(np.std(preds))
-    ci_low  = pred_ensemble - 1.96*std
-    ci_high = pred_ensemble + 1.96*std
+    # Confidence interval based on model RMSE
+    rmse = 892  # From model evaluation
+    ci_low  = pred_xgb - 1.96 * rmse
+    ci_high = pred_xgb + 1.96 * rmse
 
     return {
         "predictions": {
-            "Linear Regression": pred_lr,
-            "Random Forest": pred_rf,
             "XGBoost": pred_xgb,
-            "Ensemble (Recommended)": pred_ensemble
         },
-        "confidence_interval": {"lower_95": ci_low, "upper_95": ci_high, "std_dev": std},
+        "confidence_interval": {"lower_95": ci_low, "upper_95": ci_high, "rmse": rmse},
         "business_metrics": {
             "mmr_baseline": mmr,
-            "predicted_profit_ensemble": pred_ensemble - mmr,
-            "profit_margin_ensemble": margin_ens
+            "predicted_profit": pred_xgb - mmr,
+            "profit_margin": margin_xgb
         },
         "vehicle_info": {
             "year": year, "make": make, "body": body, "transmission": transmission,

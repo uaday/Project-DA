@@ -1,9 +1,10 @@
-# Large model files
-models/*.pkl
+# Large model files (excluding XGBoost and label encoders)
+models/lr_model.pkl
+models/rf_model.pkl
+models/scaler.pkl
 
 # Large datasets
 dataset/*.csv
-data/*.csv
 
 # Python cache
 __pycache__/
